@@ -3,8 +3,18 @@ import os
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock
-from moto import mock_dynamodb, mock_s3
 import boto3
+
+# Handle different moto versions
+try:
+    from moto import mock_aws
+    mock_dynamodb = mock_aws
+    mock_s3 = mock_aws
+except ImportError:
+    try:
+        from moto import mock_dynamodb2 as mock_dynamodb, mock_s3
+    except ImportError:
+        from moto import mock_dynamodb, mock_s3
 
 # Set environment variables before importing the module
 os.environ['ENVIRONMENT'] = 'test'

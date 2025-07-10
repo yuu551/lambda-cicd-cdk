@@ -3,8 +3,18 @@ import json
 import os
 import uuid
 from unittest.mock import patch, MagicMock, Mock
-from moto import mock_aws
 import boto3
+
+# Handle different moto versions for backward compatibility
+try:
+    from moto import mock_aws
+    USE_MOCK_AWS = True
+except ImportError:
+    USE_MOCK_AWS = False
+    try:
+        from moto import mock_dynamodb2 as mock_dynamodb
+    except ImportError:
+        from moto import mock_dynamodb
 
 # Set environment variables before importing the module
 os.environ['ENVIRONMENT'] = 'test'
@@ -25,7 +35,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src/layers/com
 import user_management
 
 
-@mock_aws
+if USE_MOCK_AWS:
+    decorator = mock_aws
+else:
+    decorator = mock_dynamodb
+
+@decorator
 class TestUserManagement(unittest.TestCase):
     """Test cases for User Management Lambda function"""
     
