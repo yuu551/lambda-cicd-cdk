@@ -42,6 +42,24 @@ jobs:
           cd test/python
           pip install -r requirements.txt
 
+      - name: Clean build artifacts
+        run: |
+          rm -f tsconfig.tsbuildinfo
+          find lib -name "*.js" -delete 2>/dev/null || true
+          find lib -name "*.d.ts" -delete 2>/dev/null || true
+          echo "Build artifacts cleaned"
+
+      - name: Debug file structure
+        run: |
+          echo "=== Project structure ==="
+          ls -la
+          echo "=== lib directory ==="
+          ls -la lib/
+          echo "=== lib/shared directory ==="
+          ls -la lib/shared/
+          echo "=== lib/constructs directory ==="
+          ls -la lib/constructs/
+
       - name: Build TypeScript
         run: npm run build
 
@@ -64,6 +82,11 @@ jobs:
 
       - name: CDK Security Check (CDK Nag)
         run: |
+          # Clean build artifacts before rebuilding
+          rm -f tsconfig.tsbuildinfo
+          find lib -name "*.js" -delete 2>/dev/null || true
+          find lib -name "*.d.ts" -delete 2>/dev/null || true
+          
           npm run build
           npx cdk synth --quiet 2>&1 | tee cdk-nag-output.txt
           if grep -q "Error\|Warning" cdk-nag-output.txt; then
@@ -96,6 +119,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Clean build artifacts
+        run: |
+          rm -f tsconfig.tsbuildinfo
+          find lib -name "*.js" -delete 2>/dev/null || true
+          find lib -name "*.d.ts" -delete 2>/dev/null || true
+          echo "Build artifacts cleaned"
 
       - name: Deploy to Development
         run: |
@@ -143,6 +173,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Clean build artifacts
+        run: |
+          rm -f tsconfig.tsbuildinfo
+          find lib -name "*.js" -delete 2>/dev/null || true
+          find lib -name "*.d.ts" -delete 2>/dev/null || true
+          echo "Build artifacts cleaned"
+
       - name: Deploy to Production
         run: |
           npm run build
@@ -182,6 +219,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Clean build artifacts
+        run: |
+          rm -f tsconfig.tsbuildinfo
+          find lib -name "*.js" -delete 2>/dev/null || true
+          find lib -name "*.d.ts" -delete 2>/dev/null || true
+          echo "Build artifacts cleaned"
 
       - name: Run npm audit
         run: npm audit --audit-level moderate
