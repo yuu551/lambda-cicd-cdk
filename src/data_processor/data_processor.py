@@ -17,7 +17,7 @@ from db import DynamoDBManager
 
 # 環境変数
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-PROCESSING_TABLE_NAME = f"{ENVIRONMENT}-processing-jobs"
+PROCESSING_TABLE_NAME = os.environ.get('PROCESSED_DATA_TABLE_NAME', f"{ENVIRONMENT}-processing-jobs")
 
 # AWS クライアント
 s3_client = boto3.client('s3')

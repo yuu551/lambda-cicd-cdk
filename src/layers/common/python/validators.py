@@ -39,12 +39,15 @@ def validate_string_length(value: str, min_length: int = 0, max_length: Optional
 
 
 def validate_phone_number(phone: str) -> bool:
-    """電話番号の形式を検証（日本の形式）"""
-    # ハイフンありなし両方に対応
+    """電話番号の形式を検証（国際的な形式に対応）"""
+    # ハイフンありなし両方に対応、より柔軟な検証
     patterns = [
-        r'^0\d{9,10}$',  # ハイフンなし
-        r'^0\d{1,4}-\d{1,4}-\d{4}$',  # ハイフンあり
-        r'^\+81\d{9,10}$'  # 国際形式
+        r'^0\d{9,10}$',  # 日本形式 ハイフンなし
+        r'^0\d{1,4}-\d{1,4}-\d{4}$',  # 日本形式 ハイフンあり
+        r'^\+81\d{9,10}$',  # 国際形式
+        r'^\d{3}-\d{3}-\d{4}$',  # 米国形式
+        r'^\+\d{1,3}\d{7,14}$',  # 一般的な国際形式
+        r'^\d{10,15}$'  # 数字のみ10-15桁
     ]
 
     return any(re.match(pattern, phone) for pattern in patterns)

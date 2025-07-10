@@ -20,7 +20,7 @@ from validators import validate_user_data
 
 # 環境変数から設定を取得
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-USER_TABLE_NAME = f"{ENVIRONMENT}-users"
+USER_TABLE_NAME = os.environ.get('USER_TABLE_NAME', f"{ENVIRONMENT}-users")
 
 # DynamoDBマネージャーの初期化
 db_manager = DynamoDBManager(USER_TABLE_NAME)

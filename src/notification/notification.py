@@ -18,7 +18,7 @@ from validators import validate_email, validate_required_fields
 
 # 環境変数
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-NOTIFICATIONS_TABLE_NAME = f"{ENVIRONMENT}-notifications"
+NOTIFICATIONS_TABLE_NAME = os.environ.get('NOTIFICATION_TABLE_NAME', f"{ENVIRONMENT}-notifications")
 
 # AWS クライアント
 sns_client = boto3.client('sns')
