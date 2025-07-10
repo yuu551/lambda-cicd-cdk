@@ -19,7 +19,7 @@ export class HealthCheckApi extends Construct {
 
     // Lambda Function
     this.lambdaFunction = new lambda.Function(this, 'HealthCheckFunction', {
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_12,
       code: lambda.Code.fromAsset('src/health_check'),
       handler: 'health_check.lambda_handler',
       timeout: cdk.Duration.seconds(30),
@@ -31,6 +31,13 @@ export class HealthCheckApi extends Construct {
       },
       tracing: lambda.Tracing.ACTIVE,
       logRetention: logs.RetentionDays.ONE_WEEK,
+    });
+
+    // CloudWatch Log Group for API Gateway
+    const apiLogGroup = new logs.LogGroup(this, 'HealthCheckApiLogs', {
+      logGroupName: `/aws/apigateway/${props.environment}-health-check-api`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // API Gateway
@@ -49,6 +56,13 @@ export class HealthCheckApi extends Construct {
         ],
       },
       cloudWatchRole: true,
+      deployOptions: {
+        accessLogDestination: new apigateway.LogGroupLogDestination(apiLogGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        metricsEnabled: true,
+      },
     });
 
     // Lambda integration
@@ -87,6 +101,10 @@ export class HealthCheckApi extends Construct {
         {
           id: 'AwsSolutions-COG4',
           reason: 'Cognito is not required for health check endpoint',
+        },
+        {
+          id: 'AwsSolutions-APIG3',
+          reason: 'WAF is not required for health check endpoint',
         },
       ]
     );

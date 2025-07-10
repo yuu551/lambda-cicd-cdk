@@ -31,11 +31,12 @@ export class DataProcessorApi extends Construct {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For demo purposes
       autoDeleteObjects: true, // For demo purposes
+      enforceSSL: true,
     });
 
     // Lambda Function
     this.lambdaFunction = new lambda.Function(this, 'DataProcessorFunction', {
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_12,
       code: lambda.Code.fromAsset('src/data_processor'),
       handler: 'data_processor.lambda_handler',
       timeout: cdk.Duration.seconds(30),
@@ -63,6 +64,13 @@ export class DataProcessorApi extends Construct {
       { prefix: 'uploads/' }
     );
 
+    // CloudWatch Log Group for API Gateway
+    const apiLogGroup = new logs.LogGroup(this, 'DataProcessorApiLogs', {
+      logGroupName: `/aws/apigateway/${props.environment}-data-processor-api`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // API Gateway
     this.api = new apigateway.RestApi(this, 'DataProcessorApi', {
       restApiName: `${props.environment}-data-processor-api`,
@@ -79,6 +87,13 @@ export class DataProcessorApi extends Construct {
         ],
       },
       cloudWatchRole: true,
+      deployOptions: {
+        accessLogDestination: new apigateway.LogGroupLogDestination(apiLogGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        metricsEnabled: true,
+      },
     });
 
     // Lambda integration
@@ -117,6 +132,10 @@ export class DataProcessorApi extends Construct {
         {
           id: 'AwsSolutions-COG4',
           reason: 'Cognito is not required for this demo API',
+        },
+        {
+          id: 'AwsSolutions-APIG3',
+          reason: 'WAF is not required for this demo API',
         },
       ]
     );

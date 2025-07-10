@@ -22,7 +22,7 @@ export class UserManagementApi extends Construct {
 
     // Lambda Function
     this.lambdaFunction = new lambda.Function(this, 'UserManagementFunction', {
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_12,
       code: lambda.Code.fromAsset('src/user_management'),
       handler: 'user_management.lambda_handler',
       timeout: cdk.Duration.seconds(30),
@@ -41,6 +41,13 @@ export class UserManagementApi extends Construct {
     // Grant DynamoDB permissions
     props.userTable.grantReadWriteData(this.lambdaFunction);
 
+    // CloudWatch Log Group for API Gateway
+    const apiLogGroup = new logs.LogGroup(this, 'UserManagementApiLogs', {
+      logGroupName: `/aws/apigateway/${props.environment}-user-management-api`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     // API Gateway
     this.api = new apigateway.RestApi(this, 'UserManagementApi', {
       restApiName: `${props.environment}-user-management-api`,
@@ -57,6 +64,13 @@ export class UserManagementApi extends Construct {
         ],
       },
       cloudWatchRole: true,
+      deployOptions: {
+        accessLogDestination: new apigateway.LogGroupLogDestination(apiLogGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        metricsEnabled: true,
+      },
     });
 
     // Lambda integration
@@ -104,6 +118,10 @@ export class UserManagementApi extends Construct {
         {
           id: 'AwsSolutions-COG4',
           reason: 'Cognito is not required for this demo API',
+        },
+        {
+          id: 'AwsSolutions-APIG3',
+          reason: 'WAF is not required for this demo API',
         },
       ]
     );
