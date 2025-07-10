@@ -1,20 +1,31 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { LambdaCicdCdkStack } from '../lib/lambda-cicd-cdk-stack';
+import { SecurityConfig } from '../lib/shared/security-config';
 
 const app = new cdk.App();
-new LambdaCicdCdkStack(app, 'LambdaCicdCdkStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+// Get environment configuration from context or environment variables
+const environment = app.node.tryGetContext('environment') || process.env.ENVIRONMENT || 'dev';
+const logLevel = app.node.tryGetContext('logLevel') || process.env.LOG_LEVEL || 'INFO';
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
+// Create different stacks for different environments
+const stackName = `LambdaCicdCdk-${environment}`;
 
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+new LambdaCicdCdkStack(app, stackName, {
+  environment,
+  logLevel,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+  },
+  description: `Lambda CICD Sample Stack - ${environment} environment`,
+  tags: {
+    Project: 'LambdaCICDSample',
+    Environment: environment,
+    ManagedBy: 'CDK',
+  },
 });
+
+// Apply CDK Nag security checks
+SecurityConfig.applyCdkNag(app);

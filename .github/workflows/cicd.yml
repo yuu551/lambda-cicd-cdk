@@ -1,0 +1,194 @@
+name: Lambda CICD with CDK
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: 18
+  PYTHON_VERSION: 3.9
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Install Python test dependencies
+        run: |
+          cd test/python
+          pip install -r requirements.txt
+
+      - name: Run CDK Synth
+        run: npm run build && npx cdk synth
+
+      - name: Run Python Lambda Tests
+        run: |
+          cd test/python
+          python -m pytest test_user_management.py -v --cov=../../src/user_management --cov-report=xml
+          python -m pytest test_data_processor.py -v --cov=../../src/data_processor --cov-report=xml
+          python -m pytest test_notification.py -v --cov=../../src/notification --cov-report=xml
+          python -m pytest test_health_check.py -v --cov=../../src/health_check --cov-report=xml
+
+      - name: Run TypeScript Tests
+        run: npm test
+
+      - name: CDK Security Check (CDK Nag)
+        run: |
+          npm run build
+          npx cdk synth --quiet 2>&1 | tee cdk-nag-output.txt
+          if grep -q "Error\|Warning" cdk-nag-output.txt; then
+            echo "CDK Nag found security issues:"
+            cat cdk-nag-output.txt
+            exit 1
+          fi
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Development
+        run: |
+          npm run build
+          npx cdk deploy LambdaCicdCdk-dev --require-approval never \
+            --context environment=dev \
+            --context logLevel=DEBUG
+
+      - name: Run Integration Tests
+        run: |
+          # Get API URLs from CDK outputs
+          USER_API_URL=$(aws cloudformation describe-stacks --stack-name LambdaCicdCdk-dev --query 'Stacks[0].Outputs[?OutputKey==`UserManagementApiUrl`].OutputValue' --output text)
+          HEALTH_API_URL=$(aws cloudformation describe-stacks --stack-name LambdaCicdCdk-dev --query 'Stacks[0].Outputs[?OutputKey==`HealthCheckApiUrl`].OutputValue' --output text)
+          
+          # Test health endpoint
+          curl -f "${HEALTH_API_URL}health" || exit 1
+          
+          # Test user creation
+          curl -f -X POST "${USER_API_URL}users" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "Test User", "email": "test@example.com"}' || exit 1
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Production
+        run: |
+          npm run build
+          npx cdk deploy LambdaCicdCdk-prod --require-approval never \
+            --context environment=prod \
+            --context logLevel=INFO
+
+      - name: Run Production Health Checks
+        run: |
+          # Get API URLs from CDK outputs
+          HEALTH_API_URL=$(aws cloudformation describe-stacks --stack-name LambdaCicdCdk-prod --query 'Stacks[0].Outputs[?OutputKey==`HealthCheckApiUrl`].OutputValue' --output text)
+          
+          # Test health endpoint
+          for i in {1..5}; do
+            if curl -f "${HEALTH_API_URL}health"; then
+              echo "Health check passed"
+              break
+            else
+              echo "Health check failed, retrying in 30s..."
+              sleep 30
+            fi
+          done
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level moderate
+
+      - name: Run CDK Security Analysis
+        run: |
+          npm run build
+          npx cdk synth --quiet > /dev/null
+          echo "CDK security analysis completed"
+
+      - name: Python Security Scan
+        run: |
+          cd test/python
+          pip install safety bandit
+          safety check -r requirements.txt
+          bandit -r ../../src/ -f json -o bandit-report.json || true
