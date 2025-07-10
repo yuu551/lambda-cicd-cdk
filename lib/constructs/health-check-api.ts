@@ -19,7 +19,7 @@ export class HealthCheckApi extends Construct {
 
     // Lambda Function
     this.lambdaFunction = new lambda.Function(this, 'HealthCheckFunction', {
-      runtime: lambda.Runtime.PYTHON_3_12,
+      runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('src/health_check'),
       handler: 'health_check.lambda_handler',
       timeout: cdk.Duration.seconds(30),
@@ -70,7 +70,22 @@ export class HealthCheckApi extends Construct {
 
     // API Routes
     const healthResource = this.api.root.addResource('health');
-    healthResource.addMethod('GET', lambdaIntegration);
+    const getMethod = healthResource.addMethod('GET', lambdaIntegration);
+
+    // Method-level CDK Nag suppressions
+    NagSuppressions.addResourceSuppressions(
+      getMethod,
+      [
+        {
+          id: 'AwsSolutions-APIG4',
+          reason: 'Authorization is not required for public health check endpoint',
+        },
+        {
+          id: 'AwsSolutions-COG4',
+          reason: 'Cognito is not required for health check endpoint',
+        },
+      ]
+    );
 
     // CDK Nag suppressions
     NagSuppressions.addResourceSuppressions(
@@ -83,6 +98,10 @@ export class HealthCheckApi extends Construct {
         {
           id: 'AwsSolutions-IAM5',
           reason: 'Lambda needs wildcard permissions for CloudWatch logs',
+        },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'Python 3.11 is compatible with Lambda Layer and sufficient for this application',
         },
       ]
     );
