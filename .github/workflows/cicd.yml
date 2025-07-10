@@ -42,8 +42,14 @@ jobs:
           cd test/python
           pip install -r requirements.txt
 
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Check Docker availability
+        run: docker --version
+
       - name: Run CDK Synth
-        run: npm run build && npx cdk synth
+        run: npx cdk synth
 
       - name: Run Python Lambda Tests
         run: |

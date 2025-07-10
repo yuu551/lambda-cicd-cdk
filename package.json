@@ -5,10 +5,11 @@
     "lambda-cicd-cdk": "bin/lambda-cicd-cdk.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --build",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "clean": "rm -rf lib/**/*.js lib/**/*.d.ts"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
