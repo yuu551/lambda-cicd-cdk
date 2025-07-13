@@ -48,23 +48,70 @@ jobs:
       - name: Run Python Lambda Tests
         run: |
           cd test/python
-          python -m pytest test_user_management.py -v --cov=../../src/user_management --cov-report=xml
-          python -m pytest test_data_processor.py -v --cov=../../src/data_processor --cov-report=xml
-          python -m pytest test_notification.py -v --cov=../../src/notification --cov-report=xml
-          python -m pytest test_health_check.py -v --cov=../../src/health_check --cov-report=xml
+          echo "==== Running User Management Tests ===="
+          python -m pytest test_user_management.py -v --tb=short --cov=../../src/user_management --cov-report=xml --cov-report=term-missing || echo "User Management tests failed"
+          
+          echo "==== Running Data Processor Tests ===="
+          python -m pytest test_data_processor.py -v --tb=short --cov=../../src/data_processor --cov-report=xml --cov-report=term-missing || echo "Data Processor tests failed"
+          
+          echo "==== Running Notification Tests ===="
+          python -m pytest test_notification.py -v --tb=short --cov=../../src/notification --cov-report=xml --cov-report=term-missing || echo "Notification tests failed"
+          
+          echo "==== Running Health Check Tests ===="
+          python -m pytest test_health_check.py -v --tb=short --cov=../../src/health_check --cov-report=xml --cov-report=term-missing || echo "Health Check tests failed"
+          
+          echo "==== Running All Tests with Combined Coverage ===="
+          python -m pytest -v --tb=short --cov=../../src --cov-report=xml --cov-report=term-missing --junit-xml=test-results.xml
+
+      - name: Upload Python Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-results
+          path: test/python/test-results.xml
+          retention-days: 30
+
+      - name: Upload Coverage Reports  
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: test/python/coverage.xml
+          retention-days: 30
 
       - name: Run TypeScript Tests
-        run: npm test
+        run: |
+          echo "==== Running TypeScript/CDK Tests ===="
+          npm test -- --verbose --coverage 2>&1 | tee typescript-test-output.txt || (
+            echo "TypeScript tests failed. Output:"
+            cat typescript-test-output.txt
+            exit 1
+          )
 
       - name: CDK Security Check (CDK Nag)
         run: |
+          echo "==== Running CDK Security Analysis ===="
           npm run build
           npx cdk synth --quiet 2>&1 | tee cdk-nag-output.txt
           if grep -q "Error\|Warning" cdk-nag-output.txt; then
-            echo "CDK Nag found security issues:"
+            echo "❌ CDK Nag found security issues:"
+            echo "===================="
             cat cdk-nag-output.txt
+            echo "===================="
             exit 1
+          else
+            echo "✅ CDK security analysis passed"
           fi
+
+      - name: Upload Build Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            typescript-test-output.txt
+            cdk-nag-output.txt
+          retention-days: 30
 
   deploy-dev:
     name: Deploy to Development
