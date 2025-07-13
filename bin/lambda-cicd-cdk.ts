@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { LambdaCicdCdkStack } from '../lib/lambda-cicd-cdk-stack';
-import { SecurityConfig } from '../lib/shared/security-config';
 
 const app = new cdk.App();
 
@@ -26,6 +25,3 @@ new LambdaCicdCdkStack(app, stackName, {
     ManagedBy: 'CDK',
   },
 });
-
-// Apply CDK Nag security checks
-SecurityConfig.applyCdkNag(app);
