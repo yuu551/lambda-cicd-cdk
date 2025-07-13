@@ -73,7 +73,7 @@ export class LambdaCicdCdkStack extends cdk.Stack {
     const userManagementFunction = new PythonFunction(this, 'UserManagementFunction', {
       entry: 'src/user_management',
       runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'lambda_handler',
+      handler: 'user_management.lambda_handler',
       layers: [commonLayer],
       environment: {
         ENVIRONMENT: environment,
@@ -86,7 +86,7 @@ export class LambdaCicdCdkStack extends cdk.Stack {
     const dataProcessorFunction = new PythonFunction(this, 'DataProcessorFunction', {
       entry: 'src/data_processor',
       runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'lambda_handler',
+      handler: 'data_processor.lambda_handler',
       layers: [commonLayer],
       environment: {
         ENVIRONMENT: environment,
@@ -100,7 +100,7 @@ export class LambdaCicdCdkStack extends cdk.Stack {
     const notificationFunction = new PythonFunction(this, 'NotificationFunction', {
       entry: 'src/notification',
       runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'lambda_handler',
+      handler: 'notification.lambda_handler',
       layers: [commonLayer],
       environment: {
         ENVIRONMENT: environment,
@@ -114,7 +114,7 @@ export class LambdaCicdCdkStack extends cdk.Stack {
     const healthCheckFunction = new PythonFunction(this, 'HealthCheckFunction', {
       entry: 'src/health_check',
       runtime: lambda.Runtime.PYTHON_3_9,
-      handler: 'lambda_handler',
+      handler: 'health_check.lambda_handler',
       environment: {
         ENVIRONMENT: environment,
         LOG_LEVEL: logLevel,
