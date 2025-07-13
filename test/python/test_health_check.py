@@ -252,11 +252,13 @@ class TestHealthCheck:
 
     def test_health_check_exception_handling(self, lambda_context):
         """Test health check exception handling"""
-        # Simulate an error condition
-        with pytest.raises(Exception):
-            # This should not happen in normal operation, but test error handling
-            event = None  # Invalid event
-            health_check.lambda_handler(event, lambda_context)
+        # Test with invalid event that should return 500 error
+        event = None  # Invalid event
+        response = health_check.lambda_handler(event, lambda_context)
+        
+        assert response['statusCode'] == 500
+        body = json.loads(response['body'])
+        assert body['error'] == 'Internal server error'
 
     def test_health_check_json_serialization(self, lambda_context):
         """Test JSON serialization of health check response"""

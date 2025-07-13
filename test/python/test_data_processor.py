@@ -3,7 +3,6 @@ import os
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock
-from moto import mock_dynamodb, mock_s3
 import boto3
 
 # Set environment variables before importing the module
@@ -36,12 +35,9 @@ def lambda_context():
 
 
 @pytest.fixture
-@mock_dynamodb
-def dynamodb_table():
+def dynamodb_table(dynamodb_resource):
     """Create a mock DynamoDB table"""
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    
-    table = dynamodb.create_table(
+    table = dynamodb_resource.create_table(
         TableName='test-processed-data',
         KeySchema=[
             {
@@ -61,16 +57,15 @@ def dynamodb_table():
     # Wait for table to be created
     table.wait_until_exists()
     
-    yield table
+    return table
 
 
 @pytest.fixture
-@mock_s3
-def s3_bucket():
+def s3_bucket(s3_client):
     """Create a mock S3 bucket"""
-    s3 = boto3.client('s3', region_name='us-east-1')
-    s3.create_bucket(Bucket='test-data-bucket')
-    yield s3
+    bucket_name = 'test-data-bucket'
+    s3_client.create_bucket(Bucket=bucket_name)
+    return s3_client
 
 
 class TestDataProcessor:

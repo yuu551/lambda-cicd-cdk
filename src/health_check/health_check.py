@@ -50,8 +50,15 @@ def handle_health_check(event, context):
     query_params = event.get('queryStringParameters', {})
     if query_params and query_params.get('details') == 'true':
         health_info['details'] = {
-            'memory': f"{context.memory_limit_in_mb}MB" if hasattr(context, 'memory_limit_in_mb') else "unknown",
-            'runtime': f"Python {platform.python_version()}",
+            'memory': {
+                'limit_mb': context.memory_limit_in_mb if hasattr(context, 'memory_limit_in_mb') else 256,
+                'unit': 'MB'
+            },
+            'runtime': {
+                'python_version': platform.python_version(),
+                'function_name': context.function_name if hasattr(context, 'function_name') else 'unknown',
+                'function_version': context.function_version if hasattr(context, 'function_version') else 'unknown'
+            },
             'region': os.environ.get('AWS_REGION', 'us-east-1')
         }
     

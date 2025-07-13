@@ -3,7 +3,6 @@ import os
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock
-from moto import mock_dynamodb
 import boto3
 
 # Set environment variables before importing the module
@@ -35,12 +34,9 @@ def lambda_context():
 
 
 @pytest.fixture
-@mock_dynamodb
-def dynamodb_table():
+def dynamodb_table(dynamodb_resource):
     """Create a mock DynamoDB table"""
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    
-    table = dynamodb.create_table(
+    table = dynamodb_resource.create_table(
         TableName='test-users',
         KeySchema=[
             {
@@ -60,7 +56,7 @@ def dynamodb_table():
     # Wait for table to be created
     table.wait_until_exists()
     
-    yield table
+    return table
 
 
 class TestUserManagement:

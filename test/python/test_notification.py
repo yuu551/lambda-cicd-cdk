@@ -3,7 +3,6 @@ import os
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock
-from moto import mock_dynamodb, mock_sns
 import boto3
 
 # Set environment variables before importing the module
@@ -36,12 +35,9 @@ def lambda_context():
 
 
 @pytest.fixture
-@mock_dynamodb
-def dynamodb_table():
+def dynamodb_table(dynamodb_resource):
     """Create a mock DynamoDB table"""
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    
-    table = dynamodb.create_table(
+    table = dynamodb_resource.create_table(
         TableName='test-notifications',
         KeySchema=[
             {
@@ -61,17 +57,15 @@ def dynamodb_table():
     # Wait for table to be created
     table.wait_until_exists()
     
-    yield table
+    return table
 
 
 @pytest.fixture
-@mock_sns
-def sns_topic():
+def sns_topic(sns_client):
     """Create a mock SNS topic"""
-    sns = boto3.client('sns', region_name='us-east-1')
-    response = sns.create_topic(Name='test-notifications')
+    response = sns_client.create_topic(Name='test-notifications')
     topic_arn = response['TopicArn']
-    yield sns, topic_arn
+    return sns_client, topic_arn
 
 
 class TestNotification:
