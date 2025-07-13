@@ -1,0 +1,1 @@
+from user_management import lambda_handler

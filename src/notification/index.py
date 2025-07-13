@@ -1,0 +1,1 @@
+from notification import lambda_handler
