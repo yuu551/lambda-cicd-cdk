@@ -20,10 +20,7 @@ from validators import validate_user_data
 
 # 環境変数から設定を取得
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
-USER_TABLE_NAME = f"{ENVIRONMENT}-users"
-
-# DynamoDBマネージャーの初期化
-db_manager = DynamoDBManager(USER_TABLE_NAME)
+USER_TABLE_NAME = os.environ.get('USER_TABLE_NAME', f"{ENVIRONMENT}-users")
 
 
 def lambda_handler(event, context):
@@ -31,16 +28,19 @@ def lambda_handler(event, context):
     log_event(event, context)
 
     try:
+        # DynamoDBマネージャーの初期化をlambda_handler内で行う
+        db_manager = DynamoDBManager(USER_TABLE_NAME)
+        
         http_method = event.get('httpMethod', '')
         resource = event.get('resource', '')
 
         # ルーティング
         if resource == '/users' and http_method == 'POST':
-            return create_user(event)
+            return create_user(event, db_manager)
         elif resource == '/users/{id}' and http_method == 'GET':
-            return get_user(event)
+            return get_user(event, db_manager)
         elif resource == '/users' and http_method == 'GET':
-            return list_users(event)
+            return list_users(event, db_manager)
         else:
             return create_response(404, {'error': 'Resource not found'})
 
@@ -49,7 +49,7 @@ def lambda_handler(event, context):
         return create_response(500, {'error': 'Internal server error'})
 
 
-def create_user(event):
+def create_user(event, db_manager):
     """新規ユーザーを作成"""
     try:
         # リクエストボディをパース
@@ -89,7 +89,7 @@ def create_user(event):
         return create_response(500, {'error': 'Failed to create user'})
 
 
-def get_user(event):
+def get_user(event, db_manager):
     """IDでユーザーを取得"""
     try:
         user_id = get_path_parameter(event, 'id')
@@ -109,7 +109,7 @@ def get_user(event):
         return create_response(500, {'error': 'Failed to get user'})
 
 
-def list_users(event):
+def list_users(event, db_manager):
     """ユーザー一覧を取得"""
     try:
         # クエリパラメータから取得数を取得

@@ -25,28 +25,28 @@ SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN', f"arn:aws:sns:us-east-1:12345678
 # 有効な通知タイプ
 VALID_NOTIFICATION_TYPES = ['email', 'sms']
 
-# AWS クライアント
-sns_client = boto3.client('sns')
-ses_client = boto3.client('ses')
-db_manager = DynamoDBManager(NOTIFICATION_TABLE_NAME)
-
 
 def lambda_handler(event, context):
     """通知サービスのメインハンドラー"""
     log_event(event, context)
 
     try:
+        # AWS クライアントとDBマネージャーの初期化
+        sns_client = boto3.client('sns')
+        ses_client = boto3.client('ses')
+        db_manager = DynamoDBManager(NOTIFICATION_TABLE_NAME)
+        
         # イベントソースを判定
         if 'Records' in event and event['Records']:
             # SNSイベント
-            return handle_sns_event(event, context)
+            return handle_sns_event(event, context, db_manager)
         elif 'httpMethod' in event:
             # API Gatewayイベント - ルーティングチェック
             http_method = event.get('httpMethod', '')
             resource = event.get('resource', '')
             
             if resource == '/notify' and http_method == 'POST':
-                return handle_api_request(event, context)
+                return handle_api_request(event, context, sns_client, db_manager)
             else:
                 return create_response(404, {'error': 'Resource not found'})
         else:
@@ -58,7 +58,7 @@ def lambda_handler(event, context):
         return create_response(500, {'error': 'Internal server error'})
 
 
-def handle_sns_event(event, context):
+def handle_sns_event(event, context, db_manager):
     """SNSイベントを処理"""
     try:
         processed_records = 0
@@ -122,7 +122,7 @@ def handle_sns_event(event, context):
         return create_response(500, {'error': 'Failed to process SNS event'})
 
 
-def handle_api_request(event, context):
+def handle_api_request(event, context, sns_client, db_manager):
     """APIリクエストを処理して通知を送信"""
     try:
         # リクエストボディをパース
@@ -215,7 +215,7 @@ def handle_api_request(event, context):
         return create_response(500, {'error': 'Failed to send notification'})
 
 
-def send_email_notification(recipient, subject, message):
+def send_email_notification(recipient, subject, message, sns_client):
     """メール通知を送信"""
     try:
         # SNSを使用してメール通知を送信（SESの代わり）
@@ -249,7 +249,7 @@ def send_email_notification(recipient, subject, message):
         }
 
 
-def send_sms_notification(phone_number, message):
+def send_sms_notification(phone_number, message, sns_client):
     """SMS通知を送信"""
     try:
         # SNSを使用してSMS通知を送信

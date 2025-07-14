@@ -5,16 +5,15 @@ import logging
 
 logger = logging.getLogger()
 
-# DynamoDBクライアント
-dynamodb = boto3.resource('dynamodb')
-
 
 class DynamoDBManager:
     """シンプルなDynamoDB操作を提供するクラス"""
 
     def __init__(self, table_name: str):
         self.table_name = table_name
-        self.table = dynamodb.Table(table_name)
+        # DynamoDBリソースをコンストラクタ内で作成
+        self.dynamodb = boto3.resource('dynamodb')
+        self.table = self.dynamodb.Table(table_name)
 
     def put_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         """アイテムをテーブルに追加"""

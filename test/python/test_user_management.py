@@ -70,7 +70,7 @@ class TestUserManagement:
             'body': json.dumps({
                 'name': 'Test User',
                 'email': 'test@example.com',
-                'phone': '123-456-7890',
+                'phone': '090-1234-5678',
                 'department': 'Engineering'
             })
         }
@@ -83,7 +83,7 @@ class TestUserManagement:
         assert 'user' in body
         assert body['user']['name'] == 'Test User'
         assert body['user']['email'] == 'test@example.com'
-        assert body['user']['phone'] == '123-456-7890'
+        assert body['user']['phone'] == '090-1234-5678'
         assert body['user']['department'] == 'Engineering'
         assert body['user']['status'] == 'active'
         assert 'id' in body['user']

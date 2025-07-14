@@ -24,27 +24,27 @@ DATA_BUCKET_NAME = os.environ.get('DATA_BUCKET_NAME', f"{ENVIRONMENT}-data-bucke
 # 有効なデータタイプ
 VALID_DATA_TYPES = ['text', 'json', 'csv', 'xml', 'binary']
 
-# AWS クライアント
-s3_client = boto3.client('s3')
-db_manager = DynamoDBManager(PROCESSED_DATA_TABLE_NAME)
-
 
 def lambda_handler(event, context):
     """データ処理のメインハンドラー"""
     log_event(event, context)
 
     try:
+        # AWS クライアントとDBマネージャーの初期化
+        s3_client = boto3.client('s3')
+        db_manager = DynamoDBManager(PROCESSED_DATA_TABLE_NAME)
+        
         # イベントソースを判定
         if 'Records' in event and event['Records']:
             # S3イベント
-            return handle_s3_event(event, context)
+            return handle_s3_event(event, context, s3_client, db_manager)
         elif 'httpMethod' in event:
             # API Gatewayイベント - ルーティングチェック
             http_method = event.get('httpMethod', '')
             resource = event.get('resource', '')
             
             if resource == '/process' and http_method == 'POST':
-                return handle_api_request(event, context)
+                return handle_api_request(event, context, db_manager)
             else:
                 return create_response(404, {'error': 'Resource not found'})
         else:
@@ -56,7 +56,7 @@ def lambda_handler(event, context):
         return create_response(500, {'error': 'Internal server error'})
 
 
-def handle_s3_event(event, context):
+def handle_s3_event(event, context, s3_client, db_manager):
     """S3イベントを処理"""
     try:
         processed_records = 0
@@ -120,7 +120,7 @@ def handle_s3_event(event, context):
         return create_response(500, {'error': 'Failed to process S3 event'})
 
 
-def handle_api_request(event, context):
+def handle_api_request(event, context, db_manager):
     """APIリクエストを処理"""
     try:
         # リクエストボディをパース
