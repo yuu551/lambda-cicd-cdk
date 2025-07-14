@@ -78,7 +78,7 @@ def handle_s3_event(event, context, s3_client, db_manager):
                     'type': 's3_processing',
                     'bucket': bucket_name,
                     'key': object_key,
-                    'status': 'processing',
+                    'processing_status': 'processing',
                     'created_at': get_current_timestamp(),
                     'event_name': event_name
                 }
@@ -92,7 +92,7 @@ def handle_s3_event(event, context, s3_client, db_manager):
 
                 # 処理完了を記録
                 updates = {
-                    'status': 'completed',
+                    'processing_status': 'completed',
                     'completed_at': get_current_timestamp(),
                     'file_size': file_size,
                     'content_type': content_type
@@ -152,7 +152,7 @@ def handle_api_request(event, context, db_manager):
         job = {
             'id': processed_id,
             'type': 'api_processing',
-            'status': 'queued',
+            'processing_status': 'queued',
             'created_at': current_timestamp,
             'data': data,
             'data_type': data_type,
@@ -166,9 +166,9 @@ def handle_api_request(event, context, db_manager):
 
         # 処理結果を更新
         updates = {
-            'status': 'completed',
+            'processing_status': 'completed',
             'completed_at': current_timestamp,
-            'result': processed_result
+            'processing_result': processed_result
         }
 
         db_manager.update_item({'id': processed_id}, updates)

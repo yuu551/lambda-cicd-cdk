@@ -93,7 +93,7 @@ def handle_sns_event(event, context, db_manager):
                     'recipient': recipient,
                     'subject': subject,
                     'message': message_content,
-                    'status': 'received',
+                    'notification_status': 'received',
                     'created_at': get_current_timestamp(),
                     'sns_message_id': message_id
                 }
@@ -103,7 +103,7 @@ def handle_sns_event(event, context, db_manager):
                 # 処理完了を記録
                 db_manager.update_item(
                     {'id': notification_id},
-                    {'status': 'processed', 'processed_at': get_current_timestamp()}
+                    {'notification_status': 'processed', 'processed_at': get_current_timestamp()}
                 )
                 
                 processed_records += 1
@@ -164,14 +164,14 @@ def handle_api_request(event, context, sns_client, db_manager):
         # 通知送信
         try:
             if notification_type == 'email':
-                send_result = send_email_notification(recipient, subject, message)
+                send_result = send_email_notification(recipient, subject, message, sns_client)
             elif notification_type == 'sms':
-                send_result = send_sms_notification(recipient, message)
+                send_result = send_sms_notification(recipient, message, sns_client)
             
-            status = 'sent' if send_result.get('success', False) else 'failed'
+            notification_status = 'sent' if send_result.get('success', False) else 'failed'
         except Exception as send_error:
             print(f"Error sending notification: {str(send_error)}")
-            status = 'failed'
+            notification_status = 'failed'
             send_result = {'success': False, 'error': str(send_error)}
 
         # 通知を記録
@@ -182,7 +182,7 @@ def handle_api_request(event, context, sns_client, db_manager):
             'recipient': recipient,
             'message': message,
             'notification_type': notification_type,
-            'status': status,
+            'notification_status': notification_status,
             'created_at': current_timestamp
         }
         
@@ -199,7 +199,7 @@ def handle_api_request(event, context, sns_client, db_manager):
             'id': notification_id,
             'recipient': recipient,
             'type': notification_type,
-            'status': status
+            'status': notification_status
         }
         
         if subject:

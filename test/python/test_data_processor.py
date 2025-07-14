@@ -1,9 +1,10 @@
+import unittest
 import json
 import os
-import pytest
 import uuid
-from unittest.mock import patch, MagicMock
+from unittest.mock import Mock, patch
 import boto3
+from moto import mock_aws
 
 # Set environment variables before importing the module
 os.environ['ENVIRONMENT'] = 'test'
@@ -21,57 +22,48 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src/layers/com
 import data_processor
 
 
-@pytest.fixture
-def lambda_context():
-    """Mock Lambda context"""
-    context = MagicMock()
-    context.request_id = 'test-request-id'
-    context.function_name = 'test-data-processor'
-    context.function_version = '$LATEST'
-    context.invoked_function_arn = 'arn:aws:lambda:us-east-1:123456789012:function:test-data-processor'
-    context.memory_limit_in_mb = 512
-    context.get_remaining_time_in_millis.return_value = 30000
-    return context
-
-
-@pytest.fixture
-def dynamodb_table(dynamodb_resource):
-    """Create a mock DynamoDB table"""
-    table = dynamodb_resource.create_table(
-        TableName='test-processed-data',
-        KeySchema=[
-            {
-                'AttributeName': 'id',
-                'KeyType': 'HASH'
-            }
-        ],
-        AttributeDefinitions=[
-            {
-                'AttributeName': 'id',
-                'AttributeType': 'S'
-            }
-        ],
-        BillingMode='PAY_PER_REQUEST'
-    )
-    
-    # Wait for table to be created
-    table.wait_until_exists()
-    
-    return table
-
-
-@pytest.fixture
-def s3_bucket(s3_client):
-    """Create a mock S3 bucket"""
-    bucket_name = 'test-data-bucket'
-    s3_client.create_bucket(Bucket=bucket_name)
-    return s3_client
-
-
-class TestDataProcessor:
+@mock_aws
+class TestDataProcessor(unittest.TestCase):
     """Test cases for Data Processor Lambda function"""
 
-    def test_process_data_api_success(self, dynamodb_table, lambda_context):
+    def setUp(self):
+        """Set up test fixtures before each test method"""
+        # Create mock DynamoDB table
+        self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        self.table = self.dynamodb.create_table(
+            TableName='test-processed-data',
+            KeySchema=[
+                {
+                    'AttributeName': 'id',
+                    'KeyType': 'HASH'
+                }
+            ],
+            AttributeDefinitions=[
+                {
+                    'AttributeName': 'id',
+                    'AttributeType': 'S'
+                }
+            ],
+            BillingMode='PAY_PER_REQUEST'
+        )
+        
+        # Wait for table to be created
+        self.table.wait_until_exists()
+        
+        # Create mock S3 bucket
+        self.s3_client = boto3.client('s3', region_name='us-east-1')
+        self.s3_client.create_bucket(Bucket='test-data-bucket')
+        
+        # Create mock Lambda context
+        self.lambda_context = Mock()
+        self.lambda_context.request_id = 'test-request-id'
+        self.lambda_context.function_name = 'test-data-processor'
+        self.lambda_context.function_version = '$LATEST'
+        self.lambda_context.invoked_function_arn = 'arn:aws:lambda:us-east-1:123456789012:function:test-data-processor'
+        self.lambda_context.memory_limit_in_mb = 512
+        self.lambda_context.get_remaining_time_in_millis = Mock(return_value=30000)
+
+    def test_process_data_api_success(self):
         """Test successful data processing via API"""
         event = {
             'httpMethod': 'POST',
@@ -83,17 +75,17 @@ class TestDataProcessor:
             })
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 200
+        self.assertEqual(response['statusCode'], 200)
         body = json.loads(response['body'])
-        assert body['message'] == 'Data processed successfully'
-        assert 'processed_data' in body
-        assert body['processed_data']['type'] == 'text'
-        assert body['processed_data']['status'] == 'processed'
-        assert 'id' in body['processed_data']
+        self.assertEqual(body['message'], 'Data processed successfully')
+        self.assertIn('processed_data', body)
+        self.assertEqual(body['processed_data']['type'], 'text')
+        self.assertEqual(body['processed_data']['status'], 'processed')
+        self.assertIn('id', body['processed_data'])
 
-    def test_process_data_api_invalid_data(self, dynamodb_table, lambda_context):
+    def test_process_data_api_invalid_data(self):
         """Test data processing with invalid data"""
         event = {
             'httpMethod': 'POST',
@@ -104,13 +96,13 @@ class TestDataProcessor:
             })
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 400
+        self.assertEqual(response['statusCode'], 400)
         body = json.loads(response['body'])
-        assert 'error' in body
+        self.assertIn('error', body)
 
-    def test_s3_event_processing(self, dynamodb_table, s3_bucket, lambda_context):
+    def test_s3_event_processing(self):
         """Test S3 event processing"""
         # Create S3 event
         s3_event = {
@@ -132,21 +124,21 @@ class TestDataProcessor:
         }
 
         # Put test object in S3
-        s3_bucket.put_object(
+        self.s3_client.put_object(
             Bucket='test-data-bucket',
             Key='uploads/test-file.txt',
             Body=b'Test file content'
         )
 
-        response = data_processor.lambda_handler(s3_event, lambda_context)
+        response = data_processor.lambda_handler(s3_event, self.lambda_context)
         
-        assert response['statusCode'] == 200
+        self.assertEqual(response['statusCode'], 200)
         body = json.loads(response['body'])
-        assert body['message'] == 'S3 event processed successfully'
-        assert 'processed_records' in body
-        assert body['processed_records'] == 1
+        self.assertEqual(body['message'], 'S3 event processed successfully')
+        self.assertIn('processed_records', body)
+        self.assertEqual(body['processed_records'], 1)
 
-    def test_s3_event_processing_error(self, dynamodb_table, lambda_context):
+    def test_s3_event_processing_error(self):
         """Test S3 event processing with non-existent object"""
         s3_event = {
             'Records': [
@@ -166,12 +158,12 @@ class TestDataProcessor:
             ]
         }
 
-        response = data_processor.lambda_handler(s3_event, lambda_context)
+        response = data_processor.lambda_handler(s3_event, self.lambda_context)
         
         # Should handle error gracefully
-        assert response['statusCode'] in [200, 500]
+        self.assertIn(response['statusCode'], [200, 500])
 
-    def test_invalid_request_method(self, dynamodb_table, lambda_context):
+    def test_invalid_request_method(self):
         """Test invalid HTTP method"""
         event = {
             'httpMethod': 'DELETE',
@@ -179,13 +171,13 @@ class TestDataProcessor:
             'body': json.dumps({'data': 'test'})
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 404
+        self.assertEqual(response['statusCode'], 404)
         body = json.loads(response['body'])
-        assert body['error'] == 'Resource not found'
+        self.assertEqual(body['error'], 'Resource not found')
 
-    def test_missing_body(self, dynamodb_table, lambda_context):
+    def test_missing_body(self):
         """Test API request with missing body"""
         event = {
             'httpMethod': 'POST',
@@ -193,13 +185,13 @@ class TestDataProcessor:
             'body': None
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 400
+        self.assertEqual(response['statusCode'], 400)
         body = json.loads(response['body'])
-        assert 'error' in body
+        self.assertIn('error', body)
 
-    def test_data_validation(self, dynamodb_table, lambda_context):
+    def test_data_validation(self):
         """Test data validation logic"""
         # Test with valid data
         valid_data = {
@@ -214,8 +206,8 @@ class TestDataProcessor:
             'body': json.dumps(valid_data)
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
-        assert response['statusCode'] == 200
+        response = data_processor.lambda_handler(event, self.lambda_context)
+        self.assertEqual(response['statusCode'], 200)
 
         # Test with invalid data type
         invalid_data = {
@@ -224,10 +216,10 @@ class TestDataProcessor:
         }
         
         event['body'] = json.dumps(invalid_data)
-        response = data_processor.lambda_handler(event, lambda_context)
-        assert response['statusCode'] == 400
+        response = data_processor.lambda_handler(event, self.lambda_context)
+        self.assertEqual(response['statusCode'], 400)
 
-    def test_cors_headers(self, dynamodb_table, lambda_context):
+    def test_cors_headers(self):
         """Test CORS headers in response"""
         event = {
             'httpMethod': 'POST',
@@ -238,16 +230,16 @@ class TestDataProcessor:
             })
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert 'headers' in response
+        self.assertIn('headers', response)
         headers = response['headers']
-        assert 'Access-Control-Allow-Origin' in headers
-        assert headers['Access-Control-Allow-Origin'] == '*'
+        self.assertIn('Access-Control-Allow-Origin', headers)
+        self.assertEqual(headers['Access-Control-Allow-Origin'], '*')
 
-    def test_exception_handling(self, lambda_context):
+    def test_exception_handling(self):
         """Test exception handling when DynamoDB is unavailable"""
-        with patch('data_processor.db_manager.put_item', side_effect=Exception('Database error')):
+        with patch('data_processor.DynamoDBManager.put_item', side_effect=Exception('Database error')):
             event = {
                 'httpMethod': 'POST',
                 'resource': '/process',
@@ -257,14 +249,14 @@ class TestDataProcessor:
                 })
             }
 
-            response = data_processor.lambda_handler(event, lambda_context)
+            response = data_processor.lambda_handler(event, self.lambda_context)
             
-            assert response['statusCode'] == 500
+            self.assertEqual(response['statusCode'], 500)
             body = json.loads(response['body'])
-            assert body['error'] == 'Failed to process data'
+            self.assertEqual(body['error'], 'Failed to process data')
 
     @patch('data_processor.get_current_timestamp')
-    def test_timestamp_generation(self, mock_timestamp, dynamodb_table, lambda_context):
+    def test_timestamp_generation(self, mock_timestamp):
         """Test timestamp generation in data processing"""
         mock_timestamp.return_value = '2023-01-01T12:00:00Z'
         
@@ -277,14 +269,14 @@ class TestDataProcessor:
             })
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 200
+        self.assertEqual(response['statusCode'], 200)
         body = json.loads(response['body'])
-        assert body['processed_data']['processed_at'] == '2023-01-01T12:00:00Z'
-        assert mock_timestamp.call_count >= 1
+        self.assertEqual(body['processed_data']['processed_at'], '2023-01-01T12:00:00Z')
+        self.assertGreaterEqual(mock_timestamp.call_count, 1)
 
-    def test_large_data_processing(self, dynamodb_table, lambda_context):
+    def test_large_data_processing(self):
         """Test processing of large data"""
         large_data = 'x' * 10000  # 10KB of data
         
@@ -298,14 +290,14 @@ class TestDataProcessor:
             })
         }
 
-        response = data_processor.lambda_handler(event, lambda_context)
+        response = data_processor.lambda_handler(event, self.lambda_context)
         
-        assert response['statusCode'] == 200
+        self.assertEqual(response['statusCode'], 200)
         body = json.loads(response['body'])
-        assert body['message'] == 'Data processed successfully'
-        assert body['processed_data']['size'] == len(large_data)
+        self.assertEqual(body['message'], 'Data processed successfully')
+        self.assertEqual(body['processed_data']['size'], len(large_data))
 
-    def test_multiple_s3_records(self, dynamodb_table, s3_bucket, lambda_context):
+    def test_multiple_s3_records(self):
         """Test processing multiple S3 records in one event"""
         s3_event = {
             'Records': [
@@ -329,15 +321,15 @@ class TestDataProcessor:
         }
 
         # Put test objects in S3
-        s3_bucket.put_object(Bucket='test-data-bucket', Key='uploads/file1.txt', Body=b'File 1')
-        s3_bucket.put_object(Bucket='test-data-bucket', Key='uploads/file2.txt', Body=b'File 2')
+        self.s3_client.put_object(Bucket='test-data-bucket', Key='uploads/file1.txt', Body=b'File 1')
+        self.s3_client.put_object(Bucket='test-data-bucket', Key='uploads/file2.txt', Body=b'File 2')
 
-        response = data_processor.lambda_handler(s3_event, lambda_context)
+        response = data_processor.lambda_handler(s3_event, self.lambda_context)
         
-        assert response['statusCode'] == 200
+        self.assertEqual(response['statusCode'], 200)
         body = json.loads(response['body'])
-        assert body['processed_records'] == 2
+        self.assertEqual(body['processed_records'], 2)
 
 
 if __name__ == '__main__':
-    pytest.main([__file__, '-v', '--cov=data_processor', '--cov-report=html'])
+    unittest.main()
